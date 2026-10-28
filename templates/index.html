@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8">
+<title>Reconocimiento de figuras como busqueda</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+ body{font-family:system-ui,sans-serif;margin:0;background:#f4f5f7;color:#222}
+ header{background:#1f3a5f;color:#fff;padding:14px 20px}
+ main{display:grid;grid-template-columns:minmax(300px,420px) 1fr;gap:16px;padding:16px;max-width:1100px;margin:auto}
+ @media(max-width:800px){main{grid-template-columns:1fr}}
+ .card{background:#fff;border-radius:10px;padding:14px;box-shadow:0 1px 3px #0002}
+ canvas{border:1px solid #bbb;border-radius:6px;background:#fff;width:100%;touch-action:none}
+ button,select{padding:8px 12px;margin:4px 4px 4px 0;border-radius:6px;border:1px solid #888;background:#fff;cursor:pointer}
+ button.p{background:#1f3a5f;color:#fff;border-color:#1f3a5f}
+ #res{font-size:1.6rem;font-weight:700;margin:6px 0}
+ table{border-collapse:collapse;width:100%;font-size:.9rem}
+ td,th{border-bottom:1px solid #ddd;padding:4px 6px;text-align:left}
+ img{max-width:100%;border-radius:6px}
+</style></head><body>
+<header><h2 style="margin:0">Reconocimiento de figuras como problema de b&uacute;squeda</h2></header>
+<main>
+ <section class="card">
+  <b>1. Dibuja una figura o sube una imagen</b>
+  <canvas id="c" width="400" height="400"></canvas>
+  <div>
+   <button onclick="limpiar()">Limpiar</button>
+   <input type="file" id="f" accept="image/*">
+  </div>
+  <div>Generar ejemplo:
+   <button onclick="ej('circulo')">C&iacute;rculo</button><button onclick="ej('cuadrado')">Cuadrado</button>
+   <button onclick="ej('triangulo')">Tri&aacute;ngulo</button><button onclick="ej('trapecio')">Trapecio</button>
+   <button onclick="ej('estrella')">Estrella</button>
+  </div>
+  <div>Algoritmo:
+   <select id="modo"><option value="heuristica">Heur&iacute;stica (voraz)</option><option value="ciega">Ciega (en anchura)</option></select>
+   <button class="p" onclick="detectar()">Detectar</button>
+  </div>
+  <small>Con el mouse (o el dedo) puedes dibujar rellenando la figura en negro.</small>
+ </section>
+ <section class="card">
+  <b>2. Resultado</b>
+  <div id="res">&mdash;</div><div id="mot"></div>
+  <img id="out" style="display:none">
+  <h4>Traza de la b&uacute;squeda</h4>
+  <table id="tr"><tr><th>Paso</th><th>Acci&oacute;n</th><th>Valor</th><th>Candidatos vivos</th></tr></table>
+  <p id="costo"></p>
+ </section>
+</main>
+<script>
+const cv=document.getElementById('c'),cx=cv.getContext('2d');
+function limpiar(){cx.fillStyle='#fff';cx.fillRect(0,0,400,400);cx.fillStyle='#000'}
+limpiar();
+let d=false;
+function pos(e){const r=cv.getBoundingClientRect();return[(e.clientX-r.left)*400/r.width,(e.clientY-r.top)*400/r.height]}
+cv.onpointerdown=e=>{d=true;const[x,y]=pos(e);cx.beginPath();cx.arc(x,y,9,0,7);cx.fill()};
+cv.onpointermove=e=>{if(!d)return;const[x,y]=pos(e);cx.beginPath();cx.arc(x,y,9,0,7);cx.fill()};
+window.onpointerup=()=>d=false;
+document.getElementById('f').onchange=e=>{
+  const im=new Image();im.onload=()=>{limpiar();const s=Math.min(400/im.width,400/im.height);
+   cx.drawImage(im,(400-im.width*s)/2,(400-im.height*s)/2,im.width*s,im.height*s)};
+  im.src=URL.createObjectURL(e.target.files[0])};
+function poli(pts){cx.beginPath();pts.forEach(([x,y],i)=>i?cx.lineTo(x,y):cx.moveTo(x,y));cx.closePath();cx.fill()}
+function ej(t){limpiar();
+ if(t=='circulo'){cx.beginPath();cx.arc(200,200,120,0,7);cx.fill()}
+ if(t=='cuadrado')cx.fillRect(100,100,200,200);
+ if(t=='triangulo')poli([[200,70],[330,300],[70,300]]);
+ if(t=='trapecio')poli([[130,110],[270,110],[340,290],[60,290]]);
+ if(t=='estrella'){const p=[];for(let i=0;i<10;i++){const r=i%2?60:140,a=-Math.PI/2+i*Math.PI/5;p.push([200+r*Math.cos(a),210+r*Math.sin(a)])}poli(p)}}
+async function detectar(){
+ const r=await fetch('/detect',{method:'POST',headers:{'Content-Type':'application/json'},
+  body:JSON.stringify({image:cv.toDataURL('image/png'),modo:document.getElementById('modo').value})});
+ const j=await r.json();
+ document.getElementById('res').textContent=j.figura.toUpperCase();
+ document.getElementById('mot').textContent=j.motivo;
+ const o=document.getElementById('out');if(j.imagen){o.src=j.imagen;o.style.display='block'}
+ const t=document.getElementById('tr');t.innerHTML='<tr><th>Paso</th><th>Acci&oacute;n</th><th>Valor</th><th>Candidatos vivos</th></tr>';
+ j.traza.forEach((s,i)=>{t.insertAdjacentHTML('beforeend',`<tr><td>${i+1}</td><td>${s.accion}</td><td>${s.valor==-1?'&infin;':s.valor}</td><td>${s.candidatos.join(', ')||'(ninguno)'}</td></tr>`)});
+ document.getElementById('costo').textContent='Costo total (rasgos extraidos/comparados): '+j.costo+' | modo: '+(j.modo||'-');
+}
+</script></body></html>"""
